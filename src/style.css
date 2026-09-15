@@ -1,0 +1,27 @@
+:root { font-family: Inter, system-ui, sans-serif; color: #203a35; background: #f4f5ef; font-synthesis: none; }
+* { box-sizing: border-box; }
+body { margin: 0; }
+main { max-width: 800px; margin: 0 auto; padding: 48px 24px; }
+header { margin-bottom: 32px; }
+.eyebrow { font-size: 11px; letter-spacing: .18em; color: #597069; }
+h1 { font-size: clamp(36px, 7vw, 54px); letter-spacing: -.04em; margin: 12px 0; font-weight: 550; }
+header > p:last-child { color: #597069; }
+section { padding: 24px; background: #fffefa; border: 1px solid #d9e0d5; border-radius: 12px; margin-bottom: 18px; }
+h2 { font-size: 13px; font-weight: 600; margin: 0 0 24px; color: #597069; }
+.fields { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; margin-top: 18px; }
+label { display: flex; flex-direction: column; gap: 8px; font-size: 13px; }
+input, select { width: 100%; min-width: 0; padding: 11px; color: inherit; background: white; border: 1px solid #bdcbc1; border-radius: 6px; font: inherit; font-size: 16px; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 3px solid #91b4a1; outline-offset: 2px; }
+.hint, footer { font-size: 12px; color: #63746e; line-height: 1.7; }
+.readout { display: flex; flex-direction: column; gap: 8px; margin: 28px 0; padding: 22px; border-radius: 8px; background: #edf3eb; }
+.readout > span { font-size: 12px; }
+output { font-size: clamp(24px, 5vw, 38px); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+small { font-size: 16px; }
+.transport { display: flex; gap: 12px; align-items: center; }
+button { border: 1px solid #234b3d; background: #234b3d; color: white; border-radius: 6px; padding: 12px 28px; font: inherit; cursor: pointer; }
+button:disabled { opacity: .5; cursor: default; }
+button.secondary { background: transparent; color: #234b3d; }
+[role=status] { font-size: 12px; color: #63746e; }
+[role=alert] { color: #a02f27; font-size: 14px; }
+footer { padding: 6px 0; }
+@media (max-width: 480px) { main { padding: 28px 16px; } section { padding: 18px; } .fields { grid-template-columns: 1fr; } }

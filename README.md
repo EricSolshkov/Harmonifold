@@ -1,19 +1,23 @@
 # Harmonifold
 
-Continuous Harmony Research Tools — **Arbitrary Frequency & Equal Division Explorer**.
+Continuous Harmony Research Tools — a canvas for continuous sound transformations.
 
-Harmonifold is a browser-based research workspace for frequency relationships. The first milestone plays one tone and explores equal logarithmic divisions of arbitrary positive frequency periods. Researchers open a URL, change parameters, and listen; no local installation is required for the deployed app.
+Create nodes containing arrays of tones, connect them with directed arrows, and play multiple independent graphs simultaneously. Each graph has its own starting node and cursor. Cursor travel time is geometric edge length divided by global speed; corresponding frequencies and gains interpolate linearly along each edge.
 
-## Current implementation
+## Use the canvas
 
-- Direct fractional frequency input or equal-division calculation, including negative steps and non-octave periods.
-- Sine, square, sawtooth and triangle oscillators; Play, Stop, and gain control.
-- Smooth frequency/gain changes with Web Audio scheduling and short attack/release envelopes.
-- Validation feedback; invalid active parameters stop playback. Audio frequencies must lie below half the browser's sample rate. Mathematics has no audio-band restriction.
-- Reproducible URL state, including mode, direct frequency, tuning parameters, waveform and gain. Opening a link never starts audio automatically.
-- Playback stops when the tab is hidden. Default gain is 0.05; allowed range is 0–0.2. Device volume still determines loudness.
+- Double-click blank canvas to add a node. Click to select, drag to move, and press Delete to remove it with its incident arrows.
+- Drag blank space to pan. Use **显示全部** (Show all) to recover offscreen nodes and **重置视图** (Reset view) to return to the initial view. Nodes can move beyond the initial bounds. View navigation also works during playback and never changes musical geometry or timing.
+- Hold Ctrl and click nodes in sequence to create directed connections. Release Ctrl to end the chain. Double-click an arrow to remove it.
+- Click an arrow to choose its interpolation mapping: `y = x`, `y = floor(x)`, or `y = smoothstep(x, 0.95, 1)`. The mapping affects frequency and gain together; cursor speed and travel time stay unchanged. Settings persist per arrow; older files default to linear.
+- Edit the selected node's sound array in the inspector. Each tone retains direct-frequency and equal-division modes, sine/square/sawtooth/triangle waveform, and gain controls.
+- Each connected graph needs one start node. The first connection initializes it; select any node with outgoing arrows to change it.
+- Press Space or Play to start all graphs together. Editing is locked during playback. Space stops; the next run restarts every graph and resets its outgoing-arrow counters.
+- Each node selects outgoing arrows in creation order on successive visits, cycling back to its first arrow after the last. Terminal graphs finish individually; loops run until stopped. There is no automatic backtracking.
+- In each graph, all sound arrays must be nonempty and equal in size, with matching waveforms at corresponding indices. Separate graphs may use different sizes and waveforms. Isolated nodes are editable drafts.
+- Edits save locally in this browser. Export/import JSON to save or share a complete work. Old single-tone URLs import as a draft node. Opening a page never starts playback automatically; hiding it stops playback.
 
-Long-term research may explore continuous pitch spaces, collections of tones, transformations, symmetry and perceptual models. This version does **not** define harmonicity, tension, harmonic distance, or a canonical harmonic manifold.
+Import [the independent loops example](docs/examples/independent-loops.json) to try two loops with different periods and voice counts.
 
 ## Development
 
@@ -23,63 +27,35 @@ Use Node.js 24 LTS and npm.
 npm ci
 npm run dev
 npm run typecheck
-npm run test
+npm test
 npm run build
 npm run preview
 ```
 
-`dev` prints the local URL. Production files are written to `dist/`. `test` runs Vitest once. The committed npm lockfile makes installs reproducible.
+The dev server prints the local URL; production output is `dist/`.
 
-## Mathematical model
+## Modules and tests
 
-The foundation is `f = baseHz × ratio`, with positive finite frequencies and ratios.
+The project separates frequency mathematics (`core`), graph editing/validation/storage (`graph`), time-based traversal and interpolation (`playback`), Web Audio scheduling (`audio`), and canvas/inspector interactions (`ui`). `App.tsx` coordinates these modules.
+
+Every behavior module has unit tests. New modules and behavior changes must include matching tests. See [the architecture and testing guide](docs/architecture.md) for module-to-test mapping, graph split/merge rules, playback semantics, validation boundaries, and scheduling limits. Tests cover graph algorithms, sound math, audio automation/cancellation, persistence, and rendered UI interactions.
+
+## Frequency mathematics
+
+The existing pure functions remain available:
 
 ```ts
 ratioToFrequency(baseHz, ratio)
-centsToFrequency(baseHz, cents) // baseHz × 2^(cents / 1200)
+centsToFrequency(baseHz, cents)
 equalDivisionFrequency(baseHz, step, divisions, periodRatio = 2)
-// baseHz × periodRatio^(step / divisions)
 ```
 
-`step` is a signed safe integer; `divisions` is a positive safe integer. Period 2 is a convenience default, not an assumption of octave equivalence. Periods below 1 are valid descending constructions. Period 1 is mathematically valid but degenerate; the UI explains it. Non-finite inputs and results, including underflow to zero, are rejected. Results use ordinary JavaScript floating-point numbers.
+Equal division uses `f = baseHz × periodRatio^(step / divisions)`. Arbitrary positive periods, fractional frequencies and negative integer steps are supported. Audio frequencies must remain below half the active browser sample rate. Per-tone gain is 0–0.2, with a fixed session-level mixing scale for multiple voices.
 
-Examples: `(440, 12, 12, 2)` gives 880 Hz; `(440, -12, 12, 2)` gives 220 Hz; `(440, 13, 13, 3)` gives 1320 Hz.
+Interpolation is linear in Hz and gain after applying the selected edge mapping. With the default `y = x`, halfway from 440 to 880 Hz is 660 Hz. `floor` holds the starting sound until the endpoint; fixed smoothstep transitions during the last 5% of the edge. Graph layout is musically meaningful: moving a node changes transition duration.
 
-URL example: `?base=440&period=3&divisions=13&step=13&wave=sine`.
+## Deployment
 
-## Architecture
+The existing GitHub Actions workflow checks types, tests and production build on pull requests and pushes to `main`. Successful main builds deploy the Pages artifact. Set repository **Settings → Pages → Build and deployment → GitHub Actions** when enabling deployment.
 
-```text
-src/
-  core/                 Pure frequency, ratio, cents and equal-division functions
-  audio/                Frequency-only Web Audio player and validation
-  ui/state.ts           Experiment state, validation and URL serialization
-  App.tsx               Parameter controls and player coordination
-  main.tsx              React entry point
-  style.css             Responsive interface
-tests/
-  core/frequency.test.ts Mathematical examples and boundary cases
-  audio.test.ts         Audio scheduling, validation and resume cancellation
-  state.test.ts         URL round trips and malformed input
-.github/workflows/pages.yml
-```
-
-`core` imports no browser, React or audio APIs. `audio` knows nothing about tuning systems. The UI connects both. The current single-oscillator scope leaves future multiple-tone work open without introducing speculative theory types.
-
-## GitHub and deployment
-
-Target repository: [EricSolshkov/Harmonifold](https://github.com/EricSolshkov/Harmonifold).
-
-The workflow validates pull requests and pushes to `main` with `npm ci`, type checking, tests and production build. Successful main-branch builds upload the Pages artifact and deploy using GitHub's Pages actions.
-
-In repository **Settings → Pages → Build and deployment**, select **GitHub Actions**. Then push to `main` or manually run **Validate and deploy**. Pages must be enabled and available for the repository's visibility/account plan.
-
-Vite uses relative asset URLs (`base: './'`) so the static build works under `/Harmonifold/` as well as a domain root. State uses query parameters, with no client-side path routes requiring server rewrites.
-
-Expected address once deployment succeeds: `https://ericsolshkov.github.io/Harmonifold/`. Configuration alone does not establish that the site has been deployed; check the Actions run and its deployment URL.
-
-## Validation and next step
-
-See [the initialization report](docs/initialization.md) for checks and remaining activation steps. Next, perform a listening pass with the intended browsers/devices and collect researcher feedback before expanding scope to multiple simultaneous tones.
-
-Implementation references: [Vite documentation](https://vite.dev/guide/) and [Web Audio parameter smoothing](https://developer.mozilla.org/en-US/docs/Web/API/AudioParam/setTargetAtTime).
+Target repository: [EricSolshkov/Harmonifold](https://github.com/EricSolshkov/Harmonifold). Vite uses relative asset URLs to support project-path hosting. This change does not itself push or deploy the app.

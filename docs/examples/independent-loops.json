@@ -1,0 +1,147 @@
+{
+  "speed": 100,
+  "nodes": [
+    {
+      "x": 160,
+      "sounds": [
+        {
+          "base": "440",
+          "frequency": "440",
+          "gain": "0.05",
+          "divisions": "12",
+          "wave": "sine",
+          "step": "0",
+          "period": "2",
+          "mode": "direct"
+        }
+      ],
+      "name": "A",
+      "id": "A",
+      "y": 180
+    },
+    {
+      "x": 460,
+      "sounds": [
+        {
+          "base": "440",
+          "frequency": "660",
+          "gain": "0.05",
+          "divisions": "12",
+          "wave": "sine",
+          "step": "0",
+          "period": "2",
+          "mode": "direct"
+        }
+      ],
+      "name": "B",
+      "id": "B",
+      "y": 180
+    },
+    {
+      "x": 310,
+      "sounds": [
+        {
+          "base": "440",
+          "frequency": "550",
+          "gain": "0.05",
+          "divisions": "12",
+          "wave": "sine",
+          "step": "0",
+          "period": "2",
+          "mode": "direct"
+        }
+      ],
+      "name": "C",
+      "id": "C",
+      "y": 400
+    },
+    {
+      "x": 720,
+      "sounds": [
+        {
+          "base": "440",
+          "frequency": "220",
+          "gain": "0.05",
+          "divisions": "12",
+          "wave": "sine",
+          "step": "0",
+          "period": "2",
+          "mode": "direct"
+        },
+        {
+          "base": "440",
+          "frequency": "440",
+          "gain": "0.05",
+          "divisions": "12",
+          "wave": "triangle",
+          "step": "0",
+          "period": "2",
+          "mode": "direct"
+        }
+      ],
+      "name": "D",
+      "id": "D",
+      "y": 280
+    },
+    {
+      "x": 1020,
+      "sounds": [
+        {
+          "base": "440",
+          "frequency": "330",
+          "gain": "0.05",
+          "divisions": "12",
+          "wave": "sine",
+          "step": "0",
+          "period": "2",
+          "mode": "direct"
+        },
+        {
+          "base": "440",
+          "frequency": "495",
+          "gain": "0.05",
+          "divisions": "12",
+          "wave": "triangle",
+          "step": "0",
+          "period": "2",
+          "mode": "direct"
+        }
+      ],
+      "name": "E",
+      "id": "E",
+      "y": 500
+    }
+  ],
+  "arrows": [
+    {
+      "to": "B",
+      "id": "AB",
+      "from": "A"
+    },
+    {
+      "to": "C",
+      "id": "BC",
+      "from": "B"
+    },
+    {
+      "to": "A",
+      "id": "CA",
+      "from": "C"
+    },
+    {
+      "to": "E",
+      "id": "DE",
+      "from": "D"
+    },
+    {
+      "to": "D",
+      "id": "ED",
+      "from": "E"
+    }
+  ],
+  "version": 1,
+  "starts": [
+    "A",
+    "D"
+  ]
+}

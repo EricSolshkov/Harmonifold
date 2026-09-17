@@ -45,3 +45,7 @@ fieldset { padding: 0; border: 0; margin: 0; min-width: 0; }
 .arrow.selected .edge { stroke: #c18136; stroke-width: 4; }
 .arrow.selected .edge-label { fill: #97601c; font-weight: 600; }
 .arrow:focus-visible { outline: 2px solid #91b4a1; }
+.cursor-handle { cursor: grab; }
+.cursor-handle.held, .canvas.scrubbing { cursor: grabbing; }
+.cursor-handle.held .cursor { fill: #d27720; stroke-width: 4; }
+.cursor-handle.paused { opacity: .45; }

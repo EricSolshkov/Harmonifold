@@ -1,0 +1,95 @@
+import { afterEach, expect, it, vi } from 'vitest';
+import { createEnsemble } from '../src/audio/ensemble';
+import type { Cursor } from '../src/playback/traversal';
+import { audioMock } from './audioMock';
+import { graph, node, twoGraphs } from './fixtures';
+
+const callbacks = () => ({ frame: vi.fn<(cursors: Cursor[]) => void>(), ended: vi.fn(), error: vi.fn() });
+afterEach(() => vi.useRealTimers());
+it('solos one cursor, cancels scheduled audio, freezes the others, and resumes without catching up', async () => {
+  vi.useFakeTimers(); const mock = audioMock(), cb = callbacks(); const player = createEnsemble(cb, mock.makeContext);
+  const p = twoGraphs(); p.nodes[3].sounds[0].frequency = '880';
+  await player.play(p); mock.context.currentTime = 0.54;
+  expect(player.beginDrag('A')).toBe(true);
+  expect(cb.frame.mock.lastCall![0]).toMatchObject([{ graph: 'A', progress: 0.5, dragging: true }, { graph: 'C', progress: 0.25, paused: true }]);
+  mock.oscillators.forEach(o => expect(o.frequency.cancelAndHoldAtTime).toHaveBeenCalledWith(0.54));
+  expect(mock.gains[1].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(1, 0.555);
+  expect(mock.gains[3].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(0, 0.555);
+  expect(mock.oscillators[1].frequency.setValueAtTime).toHaveBeenLastCalledWith(550, 0.54);
+  player.dragTo({ x: 25, y: 0 }, 10);
+  expect(mock.oscillators[0].frequency.setValueAtTime).toHaveBeenLastCalledWith(550, 0.54);
+  const frame = cb.frame.mock.lastCall, scheduled = mock.oscillators[1].frequency.linearRampToValueAtTime.mock.calls.length;
+  mock.context.currentTime = 10; vi.advanceTimersByTime(500);
+  expect(cb.frame.mock.lastCall).toEqual(frame);
+  expect(mock.oscillators[1].frequency.linearRampToValueAtTime).toHaveBeenCalledTimes(scheduled);
+  expect(cb.ended).not.toHaveBeenCalled();
+  player.endDrag();
+  expect(mock.oscillators[0].frequency.linearRampToValueAtTime).toHaveBeenLastCalledWith(880, 10.75);
+  expect(mock.oscillators[1].frequency.linearRampToValueAtTime).toHaveBeenLastCalledWith(880, 11.5);
+  expect(mock.gains[3].gain.linearRampToValueAtTime).toHaveBeenLastCalledWith(1, 10.015);
+  mock.context.currentTime = 10.25; vi.advanceTimersByTime(25);
+  expect(cb.frame.mock.lastCall![0]).toMatchObject([{ x: 50, progress: 0.5 }, { x: 75, progress: 0.375 }]);
+  expect(mock.oscillators).toHaveLength(2); expect(cb.error).not.toHaveBeenCalled(); player.dispose();
+});
+it('grabs just before a planned terminal fade and holds the endpoint sounding until release', async () => {
+  vi.useFakeTimers(); const mock = audioMock(), cb = callbacks(); const player = createEnsemble(cb, mock.makeContext);
+  await player.play(graph()); mock.context.currentTime = 1; vi.advanceTimersByTime(25);
+  expect(mock.oscillators[0].stop).not.toHaveBeenCalled();
+  expect(player.beginDrag('A')).toBe(true); player.dragTo({ x: 100, y: 0 }, 10);
+  expect(mock.oscillators[0].frequency.setValueAtTime).toHaveBeenLastCalledWith(880, 1);
+  mock.context.currentTime = 20; vi.advanceTimersByTime(100);
+  expect(mock.oscillators[0].stop).not.toHaveBeenCalled(); expect(cb.ended).not.toHaveBeenCalled();
+  expect(cb.frame.mock.lastCall![0][0]).toMatchObject({ progress: 1, done: false });
+  player.endDrag(); expect(cb.frame.mock.lastCall![0][0].done).toBe(true);
+  mock.context.currentTime = 20.1; vi.advanceTimersByTime(25);
+  expect(cb.ended).toHaveBeenCalledOnce(); player.dispose();
+});
+it.each(['linear', 'floor', 'smoothstep'] as const)('uses the %s mapping during manual audition', async mapping => {
+  vi.useFakeTimers(); const mock = audioMock(); const player = createEnsemble(callbacks(), mock.makeContext);
+  const p = graph(); p.arrows[0].mapping = mapping; p.nodes[0].sounds[0].gain = '0'; p.nodes[1].sounds[0].gain = '0.2';
+  await player.play(p); mock.context.currentTime = 0.5; player.beginDrag('A');
+  player.dragTo({ x: 97.5, y: 0 }, 10);
+  const progress = mapping === 'linear' ? 0.975 : mapping === 'floor' ? 0 : 0.5;
+  expect(mock.oscillators[0].frequency.setValueAtTime.mock.lastCall![0]).toBeCloseTo(440 + 440 * progress);
+  expect(mock.gains[2].gain.setValueAtTime.mock.lastCall![0]).toBeCloseTo(0.2 * progress);
+  player.dispose();
+});
+it('uses the new edge mapping after a junction and resumes along its arrow after a reverse drag', async () => {
+  vi.useFakeTimers(); const mock = audioMock(), cb = callbacks(); const player = createEnsemble(cb, mock.makeContext);
+  const p = graph(); p.nodes.push(node('C', 100, 100, '220')); p.arrows.push({ id: 'CB', from: 'C', to: 'B', mapping: 'floor' });
+  await player.play(p); mock.context.currentTime = 0.54; player.beginDrag('A');
+  player.dragTo({ x: 100, y: 0 }, 10); player.dragTo({ x: 100, y: 50 }, 10);
+  expect(cb.frame.mock.lastCall![0][0]).toMatchObject({ edge: 'CB', progress: 0.5 });
+  expect(mock.oscillators[0].frequency.setValueAtTime).toHaveBeenLastCalledWith(220, 0.54);
+  mock.context.currentTime = 10; player.endDrag();
+  mock.context.currentTime = 10.25; vi.advanceTimersByTime(25);
+  expect(cb.frame.mock.lastCall![0][0]).toMatchObject({ edge: 'CB', progress: 0.75, y: 25 }); player.dispose();
+});
+it('allows one owner only and keeps already-ended graphs ended after resuming', async () => {
+  vi.useFakeTimers(); const mock = audioMock(), cb = callbacks(); const player = createEnsemble(cb, mock.makeContext);
+  await player.play(twoGraphs()); mock.context.currentTime = 1.5; vi.advanceTimersByTime(25);
+  expect(player.beginDrag('A')).toBe(false); expect(player.beginDrag('C')).toBe(true);
+  expect(player.beginDrag('C')).toBe(false); expect(player.beginDrag('A')).toBe(false);
+  mock.context.currentTime = 10; player.endDrag();
+  expect(cb.frame.mock.lastCall![0][0].done).toBe(true);
+  expect(mock.oscillators).toHaveLength(2); player.dispose();
+});
+it('stop during a grab cannot be undone by a late release, and the next play resets the session', async () => {
+  vi.useFakeTimers(); const mock = audioMock(), cb = callbacks(); const player = createEnsemble(cb, mock.makeContext);
+  await player.play(twoGraphs()); mock.context.currentTime = 0.54; player.beginDrag('A');
+  player.stop(); const ramps = mock.oscillators[0].frequency.linearRampToValueAtTime.mock.calls.length;
+  player.endDrag(); player.dragTo({ x: 100, y: 0 });
+  expect(mock.oscillators[0].frequency.linearRampToValueAtTime).toHaveBeenCalledTimes(ramps);
+  expect(vi.getTimerCount()).toBe(0); expect(cb.frame.mock.lastCall![0].some(c => c.dragging || c.paused)).toBe(false);
+  expect(await player.play(twoGraphs())).toBe(true);
+  expect(cb.frame.mock.lastCall![0].map(c => c.progress)).toEqual([0, 0]); player.dispose();
+});
+it('restores the actual branch choice when a grab cancels speculative lookahead', async () => {
+  vi.useFakeTimers(); const mock = audioMock(), cb = callbacks(); const player = createEnsemble(cb, mock.makeContext);
+  const p = graph(); p.nodes.push(node('C', 200), node('D', 100, 100));
+  p.arrows.push({ id: 'BC', from: 'B', to: 'C' }, { id: 'BD', from: 'B', to: 'D' });
+  await player.play(p); mock.context.currentTime = 1; player.beginDrag('A');
+  player.dragTo({ x: 50, y: 0 }); mock.context.currentTime = 10; player.endDrag();
+  mock.context.currentTime = 10.6; vi.advanceTimersByTime(25);
+  expect(cb.frame.mock.lastCall![0][0].edge).toBe('BC'); player.dispose();
+});

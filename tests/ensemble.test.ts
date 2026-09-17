@@ -70,9 +70,11 @@ it('releases only the completed component and exits after all components finish'
   vi.useFakeTimers(); const mock = audioMock(), cb = callbacks(); const player = createEnsemble(cb, mock.makeContext);
   await player.play(twoGraphs());
   mock.context.currentTime = 1; vi.advanceTimersByTime(25);
-  expect(mock.oscillators[0].stop).toHaveBeenCalledWith(1.08);
+  expect(mock.gains[1].gain.linearRampToValueAtTime).toHaveBeenCalledWith(0, 1.08);
+  expect(mock.oscillators[0].stop).not.toHaveBeenCalled();
   expect(mock.oscillators[1].stop).not.toHaveBeenCalled(); expect(cb.ended).not.toHaveBeenCalled();
   mock.context.currentTime = 1.5; vi.advanceTimersByTime(25);
+  expect(mock.oscillators[0].stop).toHaveBeenCalledWith(1.5);
   expect(cb.frame.mock.lastCall![0].map((c: { done: boolean }) => c.done)).toEqual([true, false]);
   mock.context.currentTime = 2; vi.advanceTimersByTime(25);
   mock.context.currentTime = 2.1; vi.advanceTimersByTime(25);

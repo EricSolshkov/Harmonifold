@@ -3,7 +3,7 @@ import type { CompiledArrow, CompiledGraph } from '../graph/compile';
 import { mapProgress, type Mapping } from './mapping';
 
 export interface Segment { edge: CompiledArrow; start: number; end: number }
-export interface Cursor { graph: string; x: number; y: number; done: boolean; edge?: string; progress: number }
+export interface Cursor { graph: string; x: number; y: number; done: boolean; edge?: string; progress: number; dragging?: boolean; paused?: boolean }
 export function interpolate(from: Tone[], to: Tone[], x: number, mapping: Mapping = 'linear'): Tone[] {
   const t = mapProgress(x, mapping);
   return from.map((tone, i) => ({ waveform: tone.waveform, frequencyHz: tone.frequencyHz * (1 - t) + to[i].frequencyHz * t, gain: tone.gain * (1 - t) + to[i].gain * t }));
@@ -33,6 +33,31 @@ export class Traversal {
       this.nextTime = segment.end; this.nodeId = edge.to;
     }
     return added;
+  }
+  /** Discard speculative departures, retaining only decisions that have actually happened. */
+  freeze(time: number): Cursor {
+    const actualTime = Math.max(time, this.startTime);
+    this.planUntil(actualTime);
+    const cursor = this.cursor(actualTime);
+    for (let i = this.segments.length - 1; i >= 0; i--) {
+      const segment = this.segments[i];
+      if (segment.start > actualTime) {
+        const node = this.nodes.get(segment.edge.from)!;
+        node.nextArrow = (node.nextArrow + node.outgoing.length - 1) % node.outgoing.length;
+        this.segments.splice(i, 1);
+      }
+    }
+    return cursor;
+  }
+  /** Manual movement never consumes a departure. Resume forward on the selected edge. */
+  resumeAt(cursor: Cursor, time: number): Segment | undefined {
+    if (cursor.done || !cursor.edge) return;
+    const edge = this.graph.arrows.get(cursor.edge)!;
+    const progress = Math.max(0, Math.min(1, cursor.progress));
+    const segment = { edge, start: time - progress * edge.duration, end: time + (1 - progress) * edge.duration };
+    this.segments.splice(0, this.segments.length, segment);
+    this.nodeId = edge.to; this.nextTime = segment.end; this.endTime = Infinity;
+    return segment;
   }
   cursor(time: number): Cursor {
     while (this.segments.length > 1 && this.segments[1].start <= time) this.segments.shift();
